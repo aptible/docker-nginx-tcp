@@ -1,0 +1,13 @@
+#!/bin/bash
+set -o errexit
+set -o nounset
+set -o pipefail
+
+echo "Configure TCP proxy for: ${PROXY_CONFIGURATION}"
+
+CONFIG="$(mktemp)"
+erb /etc/nginx.conf.erb > "$CONFIG"
+
+echo "Start TCP proxy using: ${CONFIG}"
+cat "$CONFIG"
+exec nginx -c "$CONFIG"

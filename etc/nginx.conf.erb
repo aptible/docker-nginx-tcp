@@ -1,0 +1,40 @@
+load_module "modules/ngx_stream_module.so";
+
+user nginx;
+worker_processes 4;
+pid /run/nginx.pid;
+daemon off;
+
+events {
+worker_connections 768;
+}
+
+<% require 'json' %>
+<% configuration = JSON.parse(ENV.fetch('PROXY_CONFIGURATION')) %>
+
+stream {
+<% configuration.each do |listener_port, servers| %>
+  <% upstream = "backend#{listener_port}" %>
+  upstream <%= upstream %> {
+  <% servers.each do |server_host, server_port| %>
+    server <%= "#{server_host}:#{server_port}" %>;
+  <% end %>
+  }
+
+  server {
+    listen <%= listener_port %>;
+    proxy_pass <%= upstream %>;
+
+    # TODO: proxy_connect_timeout, proxy_timeout?
+  }
+<% end %>
+
+
+  log_format tcp_log  '$remote_addr:$remote_port '
+                      '- - [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time $upstream_addr $upstream_connect_time';
+
+  access_log /proc/self/fd/1 tcp_log;
+  error_log /proc/self/fd/2;
+}
