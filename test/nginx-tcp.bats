@@ -1,3 +1,5 @@
+ALPINE="alpine:3.5"
+
 function setup() {
   true
 }
@@ -13,7 +15,6 @@ function teardown() {
       echo "--- BEGIN ${container} LOGS ---"
       docker logs "$cid"
       echo "--- END ${container} LOGS ---"
-      docker rm -f "$cid"
     fi
   done
 }
@@ -27,27 +28,28 @@ function nginx() {
 function httpd() {
   [[ -z "$HTTPD" ]]
   local message="${1:-"httpd"}"
-  HTTPD="$(docker run -d alpine sh -c "echo '$message' > index.html && httpd -f")"
+  HTTPD="$(docker run -d "$ALPINE" sh -c "echo '$message' > index.html && httpd -f")"
   HTTPD_HOST="$(find_container_host "$HTTPD")"
 }
 
 function httpd_alt() {
   [[ -z "$HTTPD_ALT" ]]
   local message="${1:-"httpd alt"}"
-  HTTPD_ALT="$(docker run -d alpine sh -c "echo '$message' > index.html && httpd -f")"
+  HTTPD_ALT="$(docker run -d "$ALPINE" sh -c "echo '$message' > index.html && httpd -f")"
   HTTPD_ALT_HOST="$(find_container_host "$HTTPD_ALT")"
 }
 
 function accept() {
   [[ -z "$ACCEPT" ]]
-  ACCEPT="$(docker run -d alpine nc -l -p 123 -e sleep 100)"
+  ACCEPT="$(docker run -d "$ALPINE" nc -l -p 123 -e sleep 100)"
   ACCEPT_HOST="$(find_container_host "$ACCEPT")"
 }
 
 function wait_container() {
-  [[ -n "$NGINX" ]]
-  local timeout="${1:-"2"}"
-  timeout -s INT -k "1" "$timeout" docker wait "$NGINX"
+  local container="${1:-"$NGINX"}"
+  [[ -n "$container" ]]
+  local timeout="${2:-"2"}"
+  timeout -s INT -k "1" "$timeout" docker wait "$container"
 }
 
 function find_container_host() {
@@ -69,22 +71,22 @@ function find_container_port() {
 }
 
 @test "It fails with a malformed PROXY_CONFIGURATION (bad structure)" {
-  nginx -e "PROXY_CONFIGURATION=[10]"
+  nginx -e "PROXY_CONFIGURATION=[100]"
   [[ "$(wait_container)" = 1 ]]
 }
 
 @test "It fails with a malformed PROXY_CONFIGURATION (no upstreams)" {
-  nginx -e "PROXY_CONFIGURATION=[[10]]"
+  nginx -e "PROXY_CONFIGURATION=[[100]]"
   [[ "$(wait_container)" = 1 ]]
 }
 
 @test "It fails with a malformed PROXY_CONFIGURATION (empty upstreams)" {
-  nginx -e "PROXY_CONFIGURATION=[[10, []]]"
+  nginx -e "PROXY_CONFIGURATION=[[100, []]]"
   [[ "$(wait_container)" = 1 ]]
 }
 
 @test "It fails with a malformed PROXY_CONFIGURATION (upstream has no port)" {
-  nginx -e 'PROXY_CONFIGURATION=[[10, ["127.0.0.1"]]]'
+  nginx -e 'PROXY_CONFIGURATION=[[100, ["127.0.0.1"]]]'
   [[ "$(wait_container)" = 1 ]]
 }
 
@@ -94,59 +96,59 @@ function find_container_port() {
 }
 
 @test "It accepts connections" {
-  nginx -e 'PROXY_CONFIGURATION=[[10, [["127.0.0.1", 20]]]]'
+  nginx -e 'PROXY_CONFIGURATION=[[100, [["127.0.0.1", 200]]]]'
   [[ -z "$(wait_container)" ]]
-  docker run --rm alpine nc "$NGINX_HOST" 10
-  docker logs "$NGINX" 2>&1 | grep "127.0.0.1:20"
+  docker run --rm "$ALPINE" nc "$NGINX_HOST" 100
+  docker logs "$NGINX" 2>&1 | grep "127.0.0.1:200"
 }
 
 @test "It proxies traffic" {
   canary="hello from httpd"
   httpd "$canary"
-  nginx -e "PROXY_CONFIGURATION=[[10, [[\"$HTTPD_HOST\", 80]]]]"
+  nginx -e "PROXY_CONFIGURATION=[[100, [[\"$HTTPD_HOST\", 80]]]]"
   [[ -z "$(wait_container)" ]]
 
-  docker run --rm alpine wget -T1 -O- "${NGINX_HOST}:10" | grep "$canary"
+  docker run --rm "$ALPINE" wget -T1 -O- "${NGINX_HOST}:100" | grep "$canary"
 }
 
 @test "It proxies traffic on multiple ports" {
   canary="hello from httpd"
   httpd "$canary"
-  nginx -e "PROXY_CONFIGURATION=[ [10, [[\"$HTTPD_HOST\", 80]]], [20, [[\"$HTTPD_HOST\", 80]]] ]"
+  nginx -e "PROXY_CONFIGURATION=[ [100, [[\"$HTTPD_HOST\", 80]]], [200, [[\"$HTTPD_HOST\", 80]]] ]"
   [[ -z "$(wait_container)" ]]
 
-  docker run --rm alpine wget -T1 -O- "${NGINX_HOST}:10" | grep "$canary"
-  docker run --rm alpine wget -T1 -O- "${NGINX_HOST}:20" | grep "$canary"
+  docker run --rm "$ALPINE" wget -T1 -O- "${NGINX_HOST}:100" | grep "$canary"
+  docker run --rm "$ALPINE" wget -T1 -O- "${NGINX_HOST}:200" | grep "$canary"
 }
 
 @test "It does not mix up upstreams" {
   httpd "foo"
   httpd_alt "bar"
-  nginx -e "PROXY_CONFIGURATION=[ [10, [[\"$HTTPD_HOST\", 80]]], [20, [[\"$HTTPD_ALT_HOST\", 80]]] ]"
+  nginx -e "PROXY_CONFIGURATION=[ [100, [[\"$HTTPD_HOST\", 80]]], [200, [[\"$HTTPD_ALT_HOST\", 80]]] ]"
   [[ -z "$(wait_container)" ]]
 
-  docker run --rm alpine wget -T1 -O- "${NGINX_HOST}:10" | grep "foo"
-  docker run --rm alpine wget -T1 -O- "${NGINX_HOST}:20" | grep "bar"
+  docker run --rm "$ALPINE" wget -T1 -O- "${NGINX_HOST}:100" | grep "foo"
+  docker run --rm "$ALPINE" wget -T1 -O- "${NGINX_HOST}:200" | grep "bar"
 }
 
 @test "It proxies traffic to multiple upstreams" {
   httpd "foo"
   httpd_alt "bar"
-  nginx -e "PROXY_CONFIGURATION=[[10, [ [\"$HTTPD_HOST\", 80], [\"$HTTPD_ALT_HOST\", 80] ]]]"
+  nginx -e "PROXY_CONFIGURATION=[[100, [ [\"$HTTPD_HOST\", 80], [\"$HTTPD_ALT_HOST\", 80] ]]]"
   [[ -z "$(wait_container)" ]]
 
-  docker run --rm alpine wget -T1 -O- "${NGINX_HOST}:10"
+  docker run --rm "$ALPINE" wget -T1 -O- "${NGINX_HOST}:100"
   docker stop -t 0 "$HTTPD"
-  docker run --rm alpine wget -T1 -O- "${NGINX_HOST}:10"
+  docker run --rm "$ALPINE" wget -T1 -O- "${NGINX_HOST}:100"
   docker stop -t 0 "$HTTPD_ALT"
-  ! docker run --rm alpine wget -T1 -O- "${NGINX_HOST}:10"
+  ! docker run --rm "$ALPINE" wget -T1 -O- "${NGINX_HOST}:100"
 }
 
 @test "It enforces IDLE_TIMEOUT" {
   accept
-  nginx -e "PROXY_CONFIGURATION=[[10, [[\"$ACCEPT_HOST\", 123]]]]" -e "IDLE_TIMEOUT=2"
+  nginx -e "PROXY_CONFIGURATION=[[100, [[\"$ACCEPT_HOST\", 123]]]]" -e "IDLE_TIMEOUT=2"
   [[ -z "$(wait_container)" ]]
-  run docker run --rm alpine wget -T5 "${NGINX_HOST}:10"
+  run docker run --rm "$ALPINE" wget -T5 "${NGINX_HOST}:100"
   [[ "$status" -eq 1 ]]
   [[ "$output" =~ "error getting response" ]]
   [[ ! "$output" =~ "download timed out" ]]
