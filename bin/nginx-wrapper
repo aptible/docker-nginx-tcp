@@ -5,9 +5,25 @@ set -o pipefail
 
 echo "Configure TCP proxy for: ${PROXY_CONFIGURATION}"
 
+if [[ -n "${SSL:-}" ]]; then
+  echo "Enabling SSL termination"
+
+  SSL_CERTIFICATE_FILE="$(mktemp)"
+  printf "%s" "$SSL_CERTIFICATE" > "$SSL_CERTIFICATE_FILE"
+  unset SSL_CERTIFICATE
+
+  SSL_KEY_FILE="$(mktemp)"
+  printf "%s" "$SSL_KEY" > "$SSL_KEY_FILE"
+  unset SSL_KEY
+
+  export SSL_CERTIFICATE_FILE
+  export SSL_KEY_FILE
+fi
+
 CONFIG="$(mktemp)"
 erb /etc/nginx.conf.erb > "$CONFIG"
 
 echo "Start TCP proxy using: ${CONFIG}"
 cat "$CONFIG"
+
 exec nginx -c "$CONFIG"

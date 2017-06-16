@@ -1,7 +1,8 @@
 ALPINE="alpine:3.5"
 
 function setup() {
-  true
+  SSL_CERTIFICATE="$(cat "test/ssl/cert.pem")"
+  SSL_KEY="$(cat "test/ssl/key.pem")"
 }
 
 function teardown() {
@@ -152,4 +153,27 @@ function find_container_port() {
   [[ "$status" -eq 1 ]]
   [[ "$output" =~ "error getting response" ]]
   [[ ! "$output" =~ "download timed out" ]]
+}
+
+@test "It terminates SSL connections" {
+  httpd "$canary"
+  nginx -e "PROXY_CONFIGURATION=[[100, [[\"$HTTPD_HOST\", 80]]]]" \
+        -e 'SSL=1' -e "SSL_CERTIFICATE=${SSL_CERTIFICATE}" -e "SSL_KEY=${SSL_KEY}"
+  [[ -z "$(wait_container)" ]]
+  run docker run --rm "$CLIENT_IMAGE" curl -kv "https://${NGINX_HOST}:100"
+  [[ "$status" -eq 0 ]]
+  [[ "$output" =~ "CN=test" ]]
+  [[ "$output" =~ "200 OK" ]]
+}
+
+@test "It fails if SSL is enabled but the certificate is missing" {
+  nginx -e 'PROXY_CONFIGURATION=[[100, [["127.0.0.1", 200]]]]' \
+        -e 'SSL=1' -e "SSL_KEY=${SSL_KEY}"
+  [[ "$(wait_container)" -eq 1 ]]
+}
+
+@test "It fails if SSL is enabled but the key is missing" {
+  nginx -e 'PROXY_CONFIGURATION=[[100, [["127.0.0.1", 200]]]]' \
+        -e 'SSL=1' -e "SSL_CERTIFICATE=${SSL_CERTIFICATE}"
+  [[ "$(wait_container)" -eq 1 ]]
 }

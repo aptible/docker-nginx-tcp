@@ -1,0 +1,2 @@
+This is a publicly exposed, self-signed test SSL certificate used in tests.
+Don't use it for anything but tests.
