@@ -6,15 +6,16 @@ pid /run/nginx.pid;
 daemon off;
 
 events {
-worker_connections 768;
+  worker_connections 768;
 }
 
 <% require 'json' %>
 <% configuration = JSON.parse(ENV.fetch('PROXY_CONFIGURATION')) %>
 
 stream {
-<% configuration.each do |listener_port, servers| %>
-  <% upstream = "backend#{listener_port}" %>
+<% configuration.each_with_index do |(listener_port, servers), idx| %>
+  <% upstream = "backend#{idx}" %>
+
   upstream <%= upstream %> {
   <% servers.each do |server_host, server_port| %>
     server <%= "#{server_host}:#{server_port}" %>;
@@ -24,8 +25,7 @@ stream {
   server {
     listen <%= listener_port %>;
     proxy_pass <%= upstream %>;
-
-    # TODO: proxy_connect_timeout, proxy_timeout?
+    proxy_timeout <%= ENV.fetch('IDLE_TIMEOUT', 600) %>;
   }
 <% end %>
 
