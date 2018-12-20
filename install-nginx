@@ -1,0 +1,55 @@
+#!/bin/sh
+set -o nounset
+set -o errexit
+set -o pipefail
+
+mkdir /nginx && cd /nginx
+
+NGINX_VERSION='1.15.6'
+NGINX_SHASUM='b644566068d2995533629ac1329a296ea135a69b'
+NGINX_RESOURCE="nginx-${NGINX_VERSION}"
+NGINX_ARCHIVE="${NGINX_RESOURCE}.tar.gz"
+
+BUILD_DIR="$(mktemp -d)"
+
+cd "$BUILD_DIR"
+
+curl -fsSL "http://nginx.org/download/${NGINX_ARCHIVE}" -o "$NGINX_ARCHIVE"
+echo "${NGINX_SHASUM}  ${NGINX_ARCHIVE}" | sha1sum -c -
+tar zxf "$NGINX_ARCHIVE"
+
+echo "Downloaded:"
+ls -l
+
+cd "$NGINX_RESOURCE"
+
+# Cribbing from
+# http://git.alpinelinux.org/cgit/aports/tree/main/nginx/APKBUILD
+# but removing some options which we may not need.
+apk add --no-cache build-base pcre pcre-dev openssl openssl-dev zlib zlib-dev
+
+mkdir -p /tmp/nginx
+
+./configure \
+  --prefix=/usr \
+  --conf-path=/etc/nginx/nginx.conf \
+  --pid-path=/var/run/nginx.pid \
+  --lock-path=/var/run/nginx.lock \
+  --error-log-path=/var/log/nginx/error.log \
+  --user=nginx \
+  --group=nginx \
+  --with-pcre-jit \
+  --with-stream \
+  --with-stream_ssl_module \
+  --with-stream_ssl_preread_module
+
+make
+make install
+apk del build-base openssl-dev pcre-dev zlib-dev
+
+# Create the user and group under which the nginx process will run.
+addgroup -S nginx 2>/dev/null || true
+adduser -G nginx -H -s /sbin/nologin -D nginx 2>/dev/null || true
+
+# Finally, clean everything up
+rm -rf "$BUILD_DIR"

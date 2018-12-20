@@ -16,33 +16,34 @@ function teardown() {
       echo "--- BEGIN ${container} LOGS ---"
       docker logs "$cid"
       echo "--- END ${container} LOGS ---"
+      docker stop -t 1 "${container}"
     fi
   done
 }
 
 function nginx() {
   [[ -z "$NGINX" ]]
-  NGINX="$(docker run -d "$@" "$IMAGE")"
+  NGINX="$(docker run --name "NGINX" -d --rm "$@" "$IMAGE")"
   NGINX_HOST="$(find_container_host "$NGINX")"
 }
 
 function httpd() {
   [[ -z "$HTTPD" ]]
   local message="${1:-"httpd"}"
-  HTTPD="$(docker run -d "$ALPINE" sh -c "echo '$message' > index.html && httpd -f")"
+  HTTPD="$(docker run  --name "HTTPD" -d --rm "$ALPINE" sh -c "echo '$message' > index.html && httpd -f")"
   HTTPD_HOST="$(find_container_host "$HTTPD")"
 }
 
 function httpd_alt() {
   [[ -z "$HTTPD_ALT" ]]
   local message="${1:-"httpd alt"}"
-  HTTPD_ALT="$(docker run -d "$ALPINE" sh -c "echo '$message' > index.html && httpd -f")"
+  HTTPD_ALT="$(docker run --name "HTTPD_ALT" -d --rm "$ALPINE" sh -c "echo '$message' > index.html && httpd -f")"
   HTTPD_ALT_HOST="$(find_container_host "$HTTPD_ALT")"
 }
 
 function accept() {
   [[ -z "$ACCEPT" ]]
-  ACCEPT="$(docker run -d "$ALPINE" nc -l -p 123 -e sleep 100)"
+  ACCEPT="$(docker run --name "ACCEPT"  -d --rm "$ALPINE" nc -l -p 123 -e sleep 100)"
   ACCEPT_HOST="$(find_container_host "$ACCEPT")"
 }
 
