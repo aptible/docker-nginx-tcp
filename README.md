@@ -24,4 +24,4 @@ Additionally, the `IDLE_TIMEOUT` controls the proxy idle timeout, in seconds.
 
 MIT License, see [LICENSE](LICENSE.md) for details.
 
-Copyright (c) 2017 [Aptible](https://www.aptible.com) and contributors.
+Copyright (c) 2019 [Aptible](https://www.aptible.com) and contributors.
