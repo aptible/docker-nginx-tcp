@@ -67,6 +67,11 @@ function find_container_port() {
   [[ "$(wait_container)" = 1 ]]
 }
 
+@test "It fails if PROXY_CONFIGURATION is unset" {
+  nginx
+  [[ "$(wait_container)" = 1 ]]
+}
+
 @test "It fails if PROXY_CONFIGURATION is not JSON" {
   nginx -e "PROXY_CONFIGURATION=foo"
   [[ "$(wait_container)" = 1 ]]
