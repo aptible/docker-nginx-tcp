@@ -51,7 +51,7 @@ function wait_container() {
   local container="${1:-"$NGINX"}"
   [[ -n "$container" ]]
   local timeout="${2:-"2"}"
-  timeout -s INT -k "1" "$timeout" docker wait "$container"
+  timeout -s INT -k "2" "$timeout" docker wait "$container"
 }
 
 function find_container_host() {
