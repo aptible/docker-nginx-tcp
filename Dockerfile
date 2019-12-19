@@ -1,4 +1,4 @@
-FROM alpine:3.8
+FROM quay.io/aptible/alpine:3.8
 
 # This can be constant and embedded in the Docker image: it just needs to be
 # big enough.
