@@ -168,6 +168,78 @@ function find_container_port() {
   [[ "$output" =~ "200 OK" ]]
 }
 
+@test "It does not allow SSLv3 if DISABLE_WEAK_CIPHER_SUITES is set" {
+  httpd "$canary"
+  nginx -e "PROXY_CONFIGURATION=[[100, [[\"$HTTPD_HOST\", 80]]]]" \
+        -e 'SSL=1' -e "SSL_CERTIFICATE=${SSL_CERTIFICATE}" -e "SSL_KEY=${SSL_KEY}" \
+        -e 'DISABLE_WEAK_CIPHER_SUITES=true'
+  [[ -z "$(wait_container)" ]]
+  run docker run --rm "$CLIENT_IMAGE" sh -c "echo OK | openssl s_client -connect ${NGINX_HOST}:100 -ssl3"
+  [ "$status" -eq 1 ]
+}
+
+@test "It does not allow RC4 if DISABLE_WEAK_CIPHER_SUITES is set" {
+  httpd "$canary"
+  nginx -e "PROXY_CONFIGURATION=[[100, [[\"$HTTPD_HOST\", 80]]]]" \
+        -e 'SSL=1' -e "SSL_CERTIFICATE=${SSL_CERTIFICATE}" -e "SSL_KEY=${SSL_KEY}" \
+        -e 'DISABLE_WEAK_CIPHER_SUITES=true'
+  [[ -z "$(wait_container)" ]]
+  run docker run --rm "$CLIENT_IMAGE" sh -c "echo OK | openssl s_client -connect ${NGINX_HOST}:100 -cipher 'RC4'"
+  [ "$status" -eq 1 ]
+}
+
+@test "It allows ssl_ciphers to be overridden with SSL_CIPHERS_OVERRIDE" {
+  httpd "$canary"
+  nginx -e "PROXY_CONFIGURATION=[[100, [[\"$HTTPD_HOST\", 80]]]]" \
+        -e 'SSL=1' -e "SSL_CERTIFICATE=${SSL_CERTIFICATE}" -e "SSL_KEY=${SSL_KEY}" \
+        -e 'SSL_CIPHERS_OVERRIDE=ECDHE-RSA-AES256-GCM-SHA384'
+  [[ -z "$(wait_container)" ]]
+  run docker run --rm "$CLIENT_IMAGE" sh -c "echo OK | openssl s_client -connect ${NGINX_HOST}:100 -cipher 'ECDHE-RSA-AES256-GCM-SHA384'"
+  [ "$status" -eq 0 ]
+  run docker run --rm "$CLIENT_IMAGE" sh -c "echo OK | openssl s_client -connect ${NGINX_HOST}:100 -cipher 'ECDHE-ECDSA-AES256-GCM-SHA384'"
+  [ "$status" -eq 1 ]
+  run docker run --rm "$CLIENT_IMAGE" sh -c "echo OK | openssl s_client -connect ${NGINX_HOST}:100 -cipher 'ECDHE-RSA-AES128-GCM-SHA256'"
+  [ "$status" -eq 1 ]
+  run docker run --rm "$CLIENT_IMAGE" sh -c "echo OK | openssl s_client -connect ${NGINX_HOST}:100 -cipher 'DES-CBC-SHA'"
+  [ "$status" -eq 1 ]
+}
+
+@test "It allows ssl_protocols to be overridden with SSL_PROTOCOLS_OVERRIDE" {
+  httpd "$canary"
+  nginx -e "PROXY_CONFIGURATION=[[100, [[\"$HTTPD_HOST\", 80]]]]" \
+        -e 'SSL=1' -e "SSL_CERTIFICATE=${SSL_CERTIFICATE}" -e "SSL_KEY=${SSL_KEY}" \
+        -e 'SSL_PROTOCOLS_OVERRIDE=TLSv1.1 TLSv1.2'
+  [[ -z "$(wait_container)" ]]
+  run docker run --rm "$CLIENT_IMAGE" sh -c "echo OK | openssl s_client -connect ${NGINX_HOST}:100 -ssl3"
+  [ "$status" -eq 1 ]
+  run docker run --rm "$CLIENT_IMAGE" sh -c "echo OK | openssl s_client -connect ${NGINX_HOST}:100 -tls1"
+  [ "$status" -eq 1 ]
+  run docker run --rm "$CLIENT_IMAGE" sh -c "echo OK | openssl s_client -connect ${NGINX_HOST}:100 -tls1_1"
+  [ "$status" -eq 0 ]
+  run docker run --rm "$CLIENT_IMAGE" sh -c "echo OK | openssl s_client -connect ${NGINX_HOST}:100 -tls1_2"
+  [ "$status" -eq 0 ]
+}
+
+@test "It removes any semicolons in SSL_CIPHERS_OVERRIDE" {
+  httpd "$canary"
+  nginx -e "PROXY_CONFIGURATION=[[100, [[\"$HTTPD_HOST\", 80]]]]" \
+        -e 'SSL=1' -e "SSL_CERTIFICATE=${SSL_CERTIFICATE}" -e "SSL_KEY=${SSL_KEY}" \
+        -e 'SSL_CIPHERS_OVERRIDE=ECDHE;;-RSA-AES256-GCM-SHA384;'
+  [[ -z "$(wait_container)" ]]
+  run docker run --rm "$CLIENT_IMAGE" sh -c "echo OK | openssl s_client -connect ${NGINX_HOST}:100 -cipher 'ECDHE-RSA-AES256-GCM-SHA384'"
+  [ "$status" -eq 0 ]
+}
+
+@test "It removes any semicolons in SSL_PROTOCOLS_OVERRIDE" {
+  httpd "$canary"
+  nginx -e "PROXY_CONFIGURATION=[[100, [[\"$HTTPD_HOST\", 80]]]]" \
+        -e 'SSL=1' -e "SSL_CERTIFICATE=${SSL_CERTIFICATE}" -e "SSL_KEY=${SSL_KEY}" \
+        -e 'SSL_PROTOCOLS_OVERRIDE=;;;TLSv1.1; TLSv1.2;'
+  [[ -z "$(wait_container)" ]]
+  run docker run --rm "$CLIENT_IMAGE" sh -c "echo OK | openssl s_client -connect ${NGINX_HOST}:100 -tls1_1"
+  [ "$status" -eq 0 ]
+}
+
 @test "It fails if SSL is enabled but the certificate is missing" {
   nginx -e 'PROXY_CONFIGURATION=[[100, [["127.0.0.1", 200]]]]' \
         -e 'SSL=1' -e "SSL_KEY=${SSL_KEY}"
